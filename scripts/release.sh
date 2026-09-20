@@ -144,8 +144,11 @@ echo "==> 预检"
 command -v xcodegen >/dev/null \
     || { echo "ERROR: 找不到 xcodegen（brew install xcodegen）" >&2; exit 1; }
 
-security find-identity -v -p codesigning \
-    | grep -q "Developer ID Application.*${TEAM_ID}" \
+# 取证书的 SHA-1 指纹而不是名字：本机可能装着多个 team 的 Developer ID
+# Application 证书，用 "Developer ID Application" 这种类型名去签会因为歧义失败。
+SIGN_IDENTITY="$(security find-identity -v -p codesigning \
+    | grep "Developer ID Application.*${TEAM_ID}" | head -1 | awk '{print $2}')"
+[[ -n "$SIGN_IDENTITY" ]] \
     || { echo "ERROR: keychain 里没有 team ${TEAM_ID} 的 Developer ID Application 证书。" >&2
          echo "       Xcode → Settings → Accounts → Manage Certificates → + → Developer ID Application。" >&2
          exit 1; }
@@ -337,6 +340,13 @@ hdiutil create \
     "$DMG" >/dev/null
 rm -rf "$DMG_STAGE"
 
+# dmg 自身也要签名。只公证不签名的话，Gatekeeper 对磁盘映像的评估是
+# "rejected / no usable signature"（票据在也没用），用户双击下载来的 dmg
+# 会被拦。--timestamp 是公证的硬性要求。
+echo "==> 给 dmg 签名"
+codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG"
+codesign --verify --strict --verbose=2 "$DMG"
+
 if [[ "$PACKAGE_ONLY" != "true" ]]; then
     echo "==> 提交 .dmg 给 Apple 公证"
     notarize "$DMG" "${DIST_DIR}/notary-dmg.log" || exit 1
@@ -344,6 +354,11 @@ if [[ "$PACKAGE_ONLY" != "true" ]]; then
     echo "==> staple .dmg"
     xcrun stapler staple "$DMG"
     xcrun stapler validate "$DMG"
+
+    # 用户下载下来的 dmg 走的就是这条评估路径，发出去之前确认它是 accepted
+    echo "==> dmg 的 Gatekeeper 评估："
+    spctl -a -t open --context context:primary-signature -vv "$DMG" 2>&1 \
+        || { echo "ERROR: dmg 没通过 Gatekeeper 评估，别发出去。" >&2; exit 1; }
 fi
 
 # ── 校验和 ──────────────────────────────────────────────────────────
