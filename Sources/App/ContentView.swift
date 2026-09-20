@@ -70,6 +70,7 @@ struct KeyTab: View {
     @ObservedObject var state: AppState
     @State private var userId = ""
     @State private var encKey = ""
+    @State private var copied = false
 
     private let snippetExtract = """
     chrome.storage.session.get(null, d => {
@@ -92,8 +93,15 @@ struct KeyTab: View {
                         Text("1. 浏览器扩展需处于已解锁状态").font(.caption)
                         Text("2. 打开扩展的后台控制台：chrome://extensions → 开发者模式 → Bitwarden → 「服务工作进程」；Firefox 用 about:debugging → 「检查」")
                             .font(.caption)
-                        Text("3. 在弹出的控制台里粘贴运行下面这段代码，复制输出的 JSON").font(.caption)
-                        snippetRow(snippetExtract, label: "提取脚本")
+                        Text("3. 点下面的按钮复制脚本，粘贴到控制台回车，再复制输出的 JSON").font(.caption)
+                        HStack(spacing: 8) {
+                            Button("复制提取脚本") { copyExtractSnippet() }
+                            if copied {
+                                Label("已复制，去控制台粘贴运行", systemImage: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            }
+                        }
                         Text("输出包含 User ID 和加密密钥（keyB64），只保存在本机钥匙串，请勿外传。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -146,14 +154,14 @@ struct KeyTab: View {
         }
     }
 
-    private func snippetRow(_ snippet: String, label: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label).font(.caption.bold()).frame(width: 140, alignment: .leading)
-            Text(snippet)
-                .font(.caption.monospaced())
-                .textSelection(.enabled)
-            Spacer()
-            Button("复制") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(snippet, forType: .string) }
+    /// 提取脚本不显示在界面上（长代码会把说明挤变形），点按钮直接进剪贴板
+    private func copyExtractSnippet() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(snippetExtract, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            copied = false
         }
     }
 }
