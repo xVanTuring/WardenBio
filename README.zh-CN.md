@@ -87,7 +87,7 @@ xcodebuild -project WardenBio.xcodeproj -scheme WardenBio -derivedDataPath .buil
 ./scripts/release.sh --package-only           # 不碰 git、不公证，只产出 dist/ 下的包
 ```
 
-推 tag 后 GitHub Actions 也会走一遍同样的打包公证流程（见 `.github/workflows/release.yml`）。
+发版只在本机做，没有云端打包：公证需要 Developer ID 私钥和 Apple 凭据，搬进 CI 不划算。
 一次性准备与细节见 [AGENTS.md](./AGENTS.md) 的「发布」一节。
 
 ## 目录结构
@@ -101,8 +101,7 @@ Sources/Shared/                各目标共用的工具（日志）
 Tests/ProtocolTests/           协议单元测试（Go 参考实现互操作向量 + 握手向量）
 scripts/build.sh               xcodegen generate + xcodebuild 一键构建
 scripts/release.sh             本地发布全流程
-scripts/ci/                    CI 里用的打包发版脚本
+scripts/make-icon.sh           把 AppIcon.svg 光栅化进资产目录
 scripts/ExportOptions.plist    Developer ID 导出选项
-.github/workflows/release.yml  tag 触发的云端发布
 reference/                     参考实现源码（bw-bio-handler、goldwarden，独立 clone，不入库）
 ```

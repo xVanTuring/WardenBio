@@ -115,9 +115,9 @@ xcodebuild -project WardenBio.xcodeproj -scheme WardenBio -derivedDataPath .buil
 ./scripts/release.sh --package-only           # no git, no notarization — just produce dist/ artifacts
 ```
 
-Pushing a tag runs the same packaging/notarization flow on GitHub Actions
-(see `.github/workflows/release.yml`). One-time setup and details live in the "发布" (Releasing)
-section of [AGENTS.md](./AGENTS.md).
+Releases are built on a local machine only — notarization needs the Developer ID private key
+and Apple credentials, so there is no cloud pipeline. One-time setup and details live in the
+"发布" (Releasing) section of [AGENTS.md](./AGENTS.md).
 
 ## Repository layout
 
@@ -130,8 +130,7 @@ Sources/Shared/               shared helpers (logging)
 Tests/ProtocolTests/          protocol unit tests (Go interop vectors + handshake vector)
 scripts/build.sh              xcodegen generate + xcodebuild one-shot build
 scripts/release.sh            full local release flow
-scripts/ci/                   packaging script used by CI
+scripts/make-icon.sh          rasterize AppIcon.svg into the asset catalog
 scripts/ExportOptions.plist   Developer ID export options
-.github/workflows/release.yml tag-triggered cloud release
 reference/                    reference implementations (bw-bio-handler, goldwarden; separate clones, not tracked)
 ```

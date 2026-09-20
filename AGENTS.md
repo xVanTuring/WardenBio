@@ -120,16 +120,11 @@ xcrun notarytool store-credentials wardenbio-notary \
   `provisioningProfiles` 段；将来加了 App Group / iCloud 之类的 entitlement 才需要补（参考 Perch）。
 - `project.yml` 里 BioHost 的 `SKIP_INSTALL: YES` **不能删**：BioHost 已经内嵌进 app bundle，
   它再作为独立产物进归档的话，Xcode 判不出该分发哪个产物，就不写 `ApplicationProperties`，
-  随后 `-exportArchive` 会报 `method ... expected one {}`。两个打包脚本都会提前检查这一项。
-- CI 上只导入了 Developer ID 证书（没有 Apple Development），所以 `scripts/ci/package_and_publish.sh`
-  归档时在命令行覆盖 `CODE_SIGN_STYLE=Manual` / `CODE_SIGN_IDENTITY="Developer ID Application"`；
-  本地脚本则照常用 project.yml 的默认设置归档，再由 `-exportArchive` 重签。
+  随后 `-exportArchive` 会报 `method ... expected one {}`。脚本会提前检查这一项。
 - 发布说明：`--notes-file` > `release-notes/<tag>.md` > 按上个 tag 之后的提交自动生成。
   可以写双语，用 `<!-- lang:en -->` / `<!-- lang:zh -->` 分段——GitHub 上这些注释不可见，正文就是双语堆叠。
   模板见 `release-notes/TEMPLATE.md`，复制成 `release-notes/v<版本>.md` 填即可。
-- tag 触发 GitHub Actions 走同一条链路（`scripts/ci/package_and_publish.sh`），需要的 secrets：
-  `DEVELOPER_ID_APP_CERT_P12`、`DEVELOPER_ID_APP_CERT_PASSWORD`、`KEYCHAIN_PASSWORD`、
-  `APPLE_ID`、`APPLE_APP_PASSWORD`、`APPLE_TEAM_ID`。
+- 发版只在本机做，没有云端打包：公证要 Developer ID 私钥和 Apple 凭据，搬进 CI 的收益不抵麻烦。
 
 发完的冒烟清单（脚本结束时也会打一遍）：装 dmg → 拖进 /Applications → 启动 → 浏览器页「安装」→
 密钥页录入 → 扩展里解锁验证 Touch ID。注意从自编译版本（Apple Development 签名）换到正式版
