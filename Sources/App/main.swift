@@ -2,7 +2,7 @@ import AppKit
 
 // 单实例：已有副本运行时，通知它显示窗口后退出
 let myPID = ProcessInfo.processInfo.processIdentifier
-let bundleID = Bundle.main.bundleIdentifier ?? "com.xvan.WardenBio"
+let bundleID = Bundle.main.bundleIdentifier ?? "tech.xvanturing.WardenBio"
 let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
     .filter { $0.processIdentifier != myPID }
 if let other = others.first {

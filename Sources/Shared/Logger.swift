@@ -5,7 +5,7 @@ final class Logger {
     static let shared = Logger()
 
     private let fileURL: URL
-    private let queue = DispatchQueue(label: "com.xvan.wardenbio.logger")
+    private let queue = DispatchQueue(label: "tech.xvanturing.wardenbio.logger")
 
     private init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -15,7 +15,7 @@ final class Logger {
     }
 
     static let keychainService = "com.8bit.bitwarden.biobridge"
-    static let hostAppID = "com.xvan.wardenbio"
+    static let hostAppID = "tech.xvanturing.wardenbio"
 
     func info(_ message: String) {
         write(level: "INFO", message: redact(message))

@@ -2,7 +2,7 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 第二个实例启动时（见 main.swift）通知本实例显示窗口
-    static let showWindowNotification = Notification.Name("com.xvan.WardenBio.showWindow")
+    static let showWindowNotification = Notification.Name("tech.xvanturing.WardenBio.showWindow")
 
     private var windowController: MainWindowController!
     private var statusItemController: StatusItemController?

@@ -1,6 +1,6 @@
 name: WardenBio
 options:
-  bundleIdPrefix: com.xvan
+  bundleIdPrefix: tech.xvanturing
   createIntermediateGroups: true
   deploymentTarget:
     macOS: "14.0"
