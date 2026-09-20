@@ -11,6 +11,11 @@ settings:
     DEVELOPMENT_TEAM: T8F5T6HKG8
     CODE_SIGN_IDENTITY: "Apple Development"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
+    # 公证的硬性要求：app 和内嵌的 BioHost 都必须开 hardened runtime，
+    # 否则 notarytool 返回 Invalid（"The executable does not have the
+    # hardened runtime enabled."）。钥匙串和 Touch ID 在 hardened runtime
+    # 下正常工作，不需要额外的 com.apple.security.cs.* entitlement。
+    ENABLE_HARDENED_RUNTIME: YES
 targets:
   WardenBio:
     type: application
@@ -28,6 +33,9 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - target: BioHost
+        # codeSign（CodeSignOnCopy）必须开：不开的话拷进 Contents/MacOS 的那份
+        # 会在 app 签名时被重签成 flags=0x0，hardened runtime 标志丢失，公证被拒。
+        codeSign: true
         copy:
           destination: executables
     info:

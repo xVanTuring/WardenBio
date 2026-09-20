@@ -39,6 +39,27 @@ INFO_PLIST="Sources/App/Info.plist"
 EXPORT_OPTIONS="scripts/ExportOptions.plist"
 BUILD_DIR=".build/release"
 
+# 提交公证并确认结果。
+# notarytool 在结论是 Invalid（被拒）时**照样以 0 退出**，只看退出码会一路跑到
+# stapler 那里才炸，错误信息还跟真实原因无关，所以这里自己核对 status 行。
+notarize() {
+    local target="$1" log="$2" status sub_id
+    if ! xcrun notarytool submit "$target" \
+           --keychain-profile "$NOTARY_PROFILE" \
+           --wait 2>&1 | tee "$log"; then
+        echo "ERROR: 公证提交失败（网络或凭据问题），日志见 $log" >&2
+        return 1
+    fi
+    status="$(grep -E '^ *status: ' "$log" | tail -1 | sed -E 's/^ *status: *//')"
+    if [[ "$status" != "Accepted" ]]; then
+        sub_id="$(grep -m1 -E '^ *id: ' "$log" | sed -E 's/^ *id: *//')"
+        echo "ERROR: 公证未通过（status: ${status:-未知}），日志见 $log" >&2
+        echo "       看具体哪条不合规：" >&2
+        echo "         xcrun notarytool log ${sub_id} --keychain-profile $NOTARY_PROFILE" >&2
+        return 1
+    fi
+}
+
 # ── 参数 ────────────────────────────────────────────────────────────
 usage() {
     cat <<EOF >&2
@@ -287,14 +308,7 @@ ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
 if [[ "$PACKAGE_ONLY" != "true" ]]; then
     echo "==> 提交 .zip 给 Apple 公证（--wait 会等到出结果）"
-    NOTARY_LOG_ZIP="${DIST_DIR}/notary-app.log"
-    if ! xcrun notarytool submit "$ZIP" \
-           --keychain-profile "$NOTARY_PROFILE" \
-           --wait 2>&1 | tee "$NOTARY_LOG_ZIP"; then
-        echo "ERROR: .app 公证失败，日志见 $NOTARY_LOG_ZIP" >&2
-        echo "       取详细日志：xcrun notarytool log <submission-id> --keychain-profile $NOTARY_PROFILE" >&2
-        exit 1
-    fi
+    notarize "$ZIP" "${DIST_DIR}/notary-app.log" || exit 1
 
     echo "==> 把公证票据 staple 到 .app"
     xcrun stapler staple "$APP"
@@ -325,13 +339,7 @@ rm -rf "$DMG_STAGE"
 
 if [[ "$PACKAGE_ONLY" != "true" ]]; then
     echo "==> 提交 .dmg 给 Apple 公证"
-    NOTARY_LOG_DMG="${DIST_DIR}/notary-dmg.log"
-    if ! xcrun notarytool submit "$DMG" \
-           --keychain-profile "$NOTARY_PROFILE" \
-           --wait 2>&1 | tee "$NOTARY_LOG_DMG"; then
-        echo "ERROR: .dmg 公证失败，日志见 $NOTARY_LOG_DMG" >&2
-        exit 1
-    fi
+    notarize "$DMG" "${DIST_DIR}/notary-dmg.log" || exit 1
 
     echo "==> staple .dmg"
     xcrun stapler staple "$DMG"
