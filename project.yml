@@ -44,7 +44,7 @@ targets:
         CFBundleName: WardenBio
         CFBundleDisplayName: WardenBio
         CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "2"
+        CFBundleVersion: "3"
         CFBundleIconName: AppIcon
         LSApplicationCategoryType: public.app-category.utilities
         LSUIElement: true
