@@ -1,0 +1,6 @@
+.build/
+WardenBio.xcodeproj/
+DerivedData/
+.DS_Store
+# 参考实现是各自独立的 clone（bw-bio-handler、goldwarden），不入库
+reference/
