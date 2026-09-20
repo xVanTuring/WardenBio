@@ -4,3 +4,6 @@ DerivedData/
 .DS_Store
 # 参考实现是各自独立的 clone（bw-bio-handler、goldwarden），不入库
 reference/
+
+# 打包产物（scripts/release.sh 和 CI 生成）：只跟踪 scripts/ 和 project.yml
+dist/

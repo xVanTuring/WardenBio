@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  xcodebuild -exportArchive 用的导出选项（Developer ID 直发，不走 App Store）。
+
+  signingStyle=manual：用本机 keychain 里已有的 Developer ID Application cert，
+    不走 cloud-managed cert 的 Apple 端签发流程（member 角色账号会被 403 拒）。
+
+  signingCertificate 只能写类型名，不能写完整 SHA / Common Name——写
+    "Developer ID Application" 让 Xcode 自己按 team 找匹配证书。
+
+  WardenBio 没有 entitlements（登录项用 SMAppService.mainApp，钥匙串是普通条目），
+    所以**不需要** provisioning profile，这里也就没有 provisioningProfiles 段。
+    将来一旦加了 App Group / iCloud / Keychain Sharing 之类的 entitlement，
+    就得像 Perch 那样补一个 Developer ID profile 并在这里登记。
+-->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>developer-id</string>
+    <key>teamID</key>
+    <string>T8F5T6HKG8</string>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Developer ID Application</string>
+</dict>
+</plist>

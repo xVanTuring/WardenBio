@@ -16,9 +16,16 @@ targets:
     type: application
     platform: macOS
     sources:
-      - Sources/App
+      # AppIcon.svg 只是图标的源文件，由 scripts/make-icon.sh 光栅化成
+      # Resources/Assets.xcassets/AppIcon.appiconset，不需要进 app bundle
+      - path: Sources/App
+        excludes:
+          - "Resources/AppIcon.svg"
       - Sources/Protocol
       - Sources/Shared
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - target: BioHost
         copy:
@@ -30,6 +37,8 @@ targets:
         CFBundleDisplayName: WardenBio
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
+        CFBundleIconName: AppIcon
+        LSApplicationCategoryType: public.app-category.utilities
         LSUIElement: true
         NSHumanReadableCopyright: ""
   BioHost:
@@ -39,6 +48,13 @@ targets:
       - Sources/BioHost
       - Sources/Protocol
       - Sources/Shared
+    settings:
+      base:
+        # BioHost 已经通过 WardenBio 的 dependencies.copy 内嵌进 app bundle。
+        # 不加这条的话归档里还会多出 Products/usr/local/bin/BioHost，Xcode 会
+        # 因为拿不准该分发哪个产物而不写 ApplicationProperties，
+        # 随后 -exportArchive 就报 'method ... expected one {}'。
+        SKIP_INSTALL: YES
   ProtocolTests:
     type: bundle.unit-test
     platform: macOS
