@@ -1,74 +1,137 @@
 # WardenBio
 
-macOS 上的 Bitwarden 浏览器扩展「生物识别解锁」独立实现：不运行官方 Bitwarden 桌面客户端，仅用一个小型菜单栏 App + native messaging host，即可在浏览器扩展里用 **Touch ID / 设备密码** 解锁保险库。
+English · [简体中文](./README.zh-CN.md)
 
-协议参考 [quexten/bw-bio-handler](https://github.com/quexten/bw-bio-handler) 与 [quexten/goldwarden](https://github.com/quexten/goldwarden)（Bitwarden 桌面 ↔ 浏览器 IPC 协议的子集实现）。本项目非 Bitwarden 官方项目，相关解锁问题请勿反馈给 Bitwarden 团队。
+> Native biometric unlock for the Bitwarden browser extension on macOS — no Bitwarden Desktop app required. A tiny menu-bar app stands in for the desktop client and guards the key with Touch ID / device password.
 
-## 工作原理
+WardenBio ships its own native messaging host (`BioHost`, embedded in the app and launched by
+the browser on demand). As far as the browser extension is concerned, it *is* the desktop client:
+when the extension asks for a biometric unlock, it performs a Touch ID check (falling back to the
+device password), then reads that account's encryption key from the login keychain and hands it
+back — encrypted, on the channel the extension set up.
+
+The protocol follows [quexten/bw-bio-handler](https://github.com/quexten/bw-bio-handler) and
+[quexten/goldwarden](https://github.com/quexten/goldwarden) (a subset of the Bitwarden
+Desktop ↔ browser IPC protocol). This is not an official Bitwarden project — please don't report
+unlock problems here to the Bitwarden team.
+
+## Installation
+
+1. Download `WardenBio-<version>.dmg` from this repository's Releases page
+2. Open the dmg and drag `WardenBio.app` into `/Applications`
+   — the native messaging manifest stores the host's absolute path, so **if you move the app,
+   install the manifest again** from inside the app
+3. Launch the app and follow "Usage" below
+
+Requires macOS 14+ and a Mac with Touch ID (or one with a device password configured).
+
+## How it works
 
 ```
-浏览器扩展 -stdio(native messaging)-> BioHost -> Touch ID 验证 -> 登录钥匙串
+browser extension -stdio(native messaging)-> BioHost -> Touch ID -> login keychain
 ```
 
-- 扩展与 host 之间的协议与官方桌面客户端一致：
-  - `setupEncryption`：扩展发来 RSA 公钥，host 生成 32 字节传输密钥并用 RSA-OAEP-SHA1 加密返回
-  - 之后的所有消息用 AES-256-CBC + PKCS7 加密；`message` 里必须同时给出 `encryptedString`（`2.<iv>|<data>|<mac>`）和 iv/data/mac——扩展解密只取 `encryptedString`，少了它会在扩展侧抛异常（表现为弹窗一直转圈）
-  - `biometricUnlock`：扩展发起解锁，host 弹出 Touch ID（失败可回退设备密码），从钥匙串取出该账户的加密密钥加密返回
-- 新版扩展还会另外开一条 native messaging 通道，走官方「桌面端 IPC」（本 host 顶替桌面端的 renderer 端点）：
-  - 握手用 `Noise_NN_P256_AESGCM_SHA256`：Noise 帧封在 CBOR 里，传输载荷是 AES-256-GCM
-  - 之后是 JSON RPC：`DiscoverRequest`（上报版本，扩展据此判断「桌面端已连接」）、`GetBiometricsStatus`、`UnlockBiometrics`（取密钥）、`AuthenticateBiometrics`（仅验证）
-  - 应答必须用 `forwarded-bitwarden-ipc-message` 信封并带 `originalSource`，否则扩展会把来源记成 `DesktopMain` 而丢弃该帧
-  - 扩展是否用这条通道做生物识别解锁取决于远端开关 `BiometricsSDKIPC`；关着时仍走上面的旧命令
-- 账户加密密钥（即扩展需要的 biometric key）通过网页保险库控制台获取，录入时保存在登录钥匙串中（本机专用、解锁后可读、不 iCloud 同步）
-- 安全模型与参考实现一致：生物识别是「读取密钥的访问控制」，不是解密手段；同一用户下的其他进程原则上可访问钥匙串（这在使用官方客户端时同样成立）
+- The extension ↔ host protocol matches the official desktop client:
+  - `setupEncryption`: the extension sends an RSA public key; the host generates a 64-byte
+    transport key and returns it encrypted with RSA-OAEP-SHA1
+  - everything after that is AES-256-CBC + PKCS7; each `message` must carry both
+    `encryptedString` (`2.<iv>|<data>|<mac>`) and iv/data/mac — the extension decrypts using
+    `encryptedString` only, and without it the extension throws and its popup spins forever
+  - `unlockWithBiometricsForUser`: the extension asks for an unlock, the host shows Touch ID and
+    returns the account's encryption key
+- Newer extensions open a *second* native messaging channel speaking the official "desktop IPC"
+  (the host impersonates the desktop renderer endpoint):
+  - handshake: `Noise_NN_P256_AESGCM_SHA256` — Noise frames wrapped in CBOR, payloads in AES-256-GCM
+  - then JSON RPC: `DiscoverRequest` (reports a version; the extension treats that as "desktop
+    app connected"), `GetBiometricsStatus`, `UnlockBiometrics` (returns the key),
+    `AuthenticateBiometrics` (check only)
+  - replies must use the `forwarded-bitwarden-ipc-message` envelope with `originalSource`,
+    otherwise the extension records the source as `DesktopMain` and drops the frame
+  - whether the extension actually uses this channel for unlocks depends on its remote
+    `BiometricsSDKIPC` flag; when it is off, the older commands above are used
+- The account's encryption key (the "biometric key" the extension wants) is read out of the
+  unlocked browser extension and stored in the login keychain (this-device-only, readable while
+  unlocked, never synced to iCloud)
+- Same security model as the reference implementations: biometrics gate *access* to the stored
+  key, they don't encrypt anything; other processes running as you can in principle reach the
+  keychain (that is equally true with the official desktop client)
 
-## 构建
+## Usage
 
-依赖：Xcode、[xcodegen](https://github.com/yonaskolb/XcodeGen)（`brew install xcodegen`）。
+1. **Keep `WardenBio.app` in a fixed location** (ideally `/Applications`). The manifest records
+   the host's absolute path, so re-install it after moving the app.
+2. Open the app (menu-bar fingerprint icon → "打开 WardenBio…") and click **安装** next to your
+   browser on the **浏览器** (Browsers) tab. Chrome/Chromium/Edge/Brave/Vivaldi/Arc/Firefox are supported.
+3. On the **密钥** (Key) tab click **复制提取脚本** (copy extraction script), paste it into the
+   extension's background console (Chrome: `chrome://extensions` → Developer mode → Bitwarden →
+   "service worker"; Firefox: `about:debugging` → "Inspect") and run it. It prints the User ID
+   and the encryption key (`keyB64`).
+4. Back on the **密钥** tab, paste both values → **保存并验证** (save & verify) → approve Touch ID.
+5. In the Bitwarden extension, Settings → Account security → enable "Unlock with biometrics".
+   After locking the extension, unlocking will now prompt for Touch ID.
+
+## Uninstall
+
+- App **浏览器** tab: click **卸载** for every configured browser (removes `com.8bit.bitwarden.json`)
+- App **密钥** tab: delete each stored account key
+- Quit the app and delete WardenBio.app
+
+## Known limitations
+
+- Safari is not supported (its extension model and native messaging differ)
+- Browsers must be installed normally; if a browser cannot see the manifest under
+  `~/Library/Application Support` (unusual sandboxed/portable setups), unlocking fails silently
+- The host process is launched by the browser on demand once biometrics are enabled in the
+  extension; the app itself does not need to be running (open it only to configure)
+- The stored key is the vault's encryption key — never keep a plaintext copy anywhere
+- Switching from a self-built copy (Apple Development signature) to a released build (Developer ID
+  signature) can make the existing keychain entry unreadable; just enter the key again
+
+## Build from source
+
+Requirements: Xcode and [xcodegen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
 
 ```bash
-./scripts/build.sh            # Debug，默认
+./scripts/build.sh            # Debug (default)
 ./scripts/build.sh Release    # Release
 ```
 
-产物：`.build/derived/Build/Products/<配置>/WardenBio.app`（`BioHost` 已内嵌在 `Contents/MacOS/`）。
+Output: `.build/derived/Build/Products/<config>/WardenBio.app` (with `BioHost` embedded in
+`Contents/MacOS/`).
 
-单元测试（含与 Go 参考实现的密码学互操作向量）：
+Unit tests (including crypto interoperability vectors from the Go reference implementation and a
+handshake vector verified against snow):
 
 ```bash
 xcodebuild -project WardenBio.xcodeproj -scheme WardenBio -derivedDataPath .build/derived test
 ```
 
-## 使用步骤
+## Releasing (maintainers)
 
-1. **把 `WardenBio.app` 放到一个固定位置**（建议 `/Applications`）。manifest 会记录 host 的绝对路径，移动 app 后需重新安装 manifest。
-2. 打开 app（菜单栏指纹图标 → 「打开 WardenBio…」），在 **浏览器** 标签页为你的浏览器点「安装」。支持 Chrome/Chromium/Edge/Brave/Vivaldi/Arc/Firefox。
-3. 在已登录的 [Bitwarden 网页保险库](https://vault.bitwarden.com) 中按 F12 打开控制台，执行 app **密钥** 标签页里给出的两条命令，得到 User ID 与加密密钥（`encKeyB64`）。
-4. 回到 app **密钥** 标签页，粘贴两个值 → 「保存并验证」→ 按 Touch ID。验证通过即录入完成。
-5. 在浏览器 Bitwarden 扩展的 设置 → 账户安全 中开启「使用生物识别解锁浏览器」。之后锁定扩展再点击解锁，会弹出 Touch ID。
+```bash
+./scripts/release.sh 0.1.0                    # bump → test → commit/push → archive → sign → notarize → package → tag → release
+./scripts/release.sh 0.2.0 --prerelease beta  # pre-release
+./scripts/release.sh 0.2.0 --dry-run          # bump + test + local commit only
+./scripts/release.sh --package-only           # no git, no notarization — just produce dist/ artifacts
+```
 
-## 卸载
+Pushing a tag runs the same packaging/notarization flow on GitHub Actions
+(see `.github/workflows/release.yml`). One-time setup and details live in the "发布" (Releasing)
+section of [AGENTS.md](./AGENTS.md).
 
-- App **浏览器** 标签页：对每个已配置的浏览器点「卸载」（删除 `com.8bit.bitwarden.json`）
-- App **密钥** 标签页：删除各账户密钥
-- 退出并删除 WardenBio.app
-
-## 已知限制
-
-- 不支持 Safari（其扩展机制与 native messaging 不同）
-- 浏览器需以常规方式安装；如果浏览器无法看到 `~/Library/Application Support` 下的 manifest（如特殊的沙盒/便携版配置），解锁会静默失败
-- host 进程由浏览器在扩展开启生物识别后按需拉起，app 本身不需要常驻运行（仅管理时打开）
-- 录入的密钥等同于保险库的加密密钥，请勿在任何地方明文留存
-
-## 目录结构
+## Repository layout
 
 ```
-project.yml               xcodegen 工程定义
-Sources/Protocol/         协议：帧编解码、消息模型、AES-CBC、SPKI/OAEP
-Sources/BioHost/          native messaging host（serve/store-key/list-keys/remove-key/test-unlock）
-Sources/App/              菜单栏 App（SwiftUI：浏览器管理/密钥录入/日志）
-Sources/Shared/           两个目标共用的工具（日志）
-Tests/ProtocolTests/      协议单元测试（含 Go 参考实现互操作向量）
-scripts/build.sh          xcodegen generate + xcodebuild 一键构建
-reference/                参考实现源码（bw-bio-handler、goldwarden）
+project.yml                   xcodegen project definition
+Sources/Protocol/             protocol: framing, message models, AES-CBC/HMAC, SPKI/OAEP, Noise, CBOR
+Sources/BioHost/              native messaging host (serve/store-key/list-keys/remove-key/test-unlock)
+Sources/App/                  menu-bar app (SwiftUI: browsers / keys / settings / log)
+Sources/Shared/               shared helpers (logging)
+Tests/ProtocolTests/          protocol unit tests (Go interop vectors + handshake vector)
+scripts/build.sh              xcodegen generate + xcodebuild one-shot build
+scripts/release.sh            full local release flow
+scripts/ci/                   packaging script used by CI
+scripts/ExportOptions.plist   Developer ID export options
+.github/workflows/release.yml tag-triggered cloud release
+reference/                    reference implementations (bw-bio-handler, goldwarden; separate clones, not tracked)
 ```
